@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birikim Hesaplayıcı</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            transition: background-color 1s ease, color 1s ease;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            background-color: #00ff00;
+            border-radius: 50%;
+            margin-bottom: 20px;
+            display: inline-block;
+            animation: logoAnimation 1s infinite alternate;
+        }
+
+        @keyframes logoAnimation {
+            0% { background-color: red; }
+            50% { background-color: blue; }
+            100% { background-color: red; }
+        }
+
+        h1 {
+            color: #00ff00;
+            margin-bottom: 20px;
+        }
+
+        #savingsForm {
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+
+        button {
+            background-color: #00ff00;
+            color: #121212;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #ff00ff;
+            transform: scale(1.1);
+        }
+
+        #resultBox, #incrementalBox, #cumulativeBox, #timerBox {
+            background-color: #1e1e1e;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            width: 300px;
+            margin: 10px auto;
+            border-radius: 10px;
+            position: relative;
+        }
+
+        .blinking {
+            font-size: 20px;
+            font-weight: bold;
+            color: #00ff00;
+            animation: blink-animation 1s steps(5, start) infinite;
+        }
+
+        @keyframes blink-animation {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo"></div>
+        <h1>Birikim Hesaplayıcı</h1>
+        <form id="savingsForm">
+            <label for="amount">Aylık Birikim Miktarı (TL):</label>
+            <input type="number" id="amount" name="amount" min="0" step="0.01" required>
+
+            <label for="exchangeRate">Dolar Kuru:</label>
+            <input type="number" id="exchangeRate" name="exchangeRate" min="0" step="0.01" required>
+
+            <label for="frequency">Birikim Sıklığı:</label>
+            <select id="frequency" name="frequency" required>
+                <option value="hourly">Saatlik</option>
+                <option value="minute">Dakikalık</option>
+                <option value="daily">Günlük</option>
+                <option value="monthly">Aylık</option>
+            </select>
+
+            <button type="button" onclick="calculateSavings()">Başlat</button>
+        </form>
+
+        <div id="resultBox">
+            <p id="result"></p>
+        </div>
+
+        <div id="incrementalBox">
+            <p id="incrementalResult" class="blinking"></p>
+        </div>
+
+        <div id="cumulativeBox">
+            <p id="cumulativeResultTL"></p>
+            <p id="cumulativeResultUSD"></p>
+        </div>
+
+        <div id="timerBox">
+            <p id="timer">00:00:00</p>
+        </div>
+        
+        <button type="button" onclick="startIncrementalAndTimer()">Artırmaya ve Kronometreye Başla</button>
+    </div>
+
+    <script>
+        let interval;
+        let timerInterval;
+        let seconds = 0;
+
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const savedAmount = localStorage.getItem('amount');
+            const savedExchangeRate = localStorage.getItem('exchangeRate');
+            const savedFrequency = localStorage.getItem('frequency');
+
+            if (savedAmount) document.getElementById('amount').value = savedAmount;
+            if (savedExchangeRate) document.getElementById('exchangeRate').value = savedExchangeRate;
+            if (savedFrequency) document.getElementById('frequency').value = savedFrequency;
+        });
+
+        function calculateSavings() {
+            const amount = parseFloat(document.getElementById('amount').value);
+            const frequency = document.getElementById('frequency').value;
+            let result = 0;
+            let period = 0;
+
+            localStorage.setItem('amount', amount);
+            localStorage.setItem('exchangeRate', parseFloat(document.getElementById('exchangeRate').value));
+            localStorage.setItem('frequency', frequency);
+
+            switch (frequency) {
+                case 'hourly':
+                    period = 30 * 24;
+                    result = (amount / period).toFixed(2);
+                    break;
+                case 'minute':
+                    period = 30 * 24 * 60;
+                    result = (amount / period).toFixed(4);
+                    break;
+                case 'daily':
+                    period = 30;
+                    result = (amount / period).toFixed(2);
+                    break;
+                case 'monthly':
+                    result = amount.toFixed(2);
+                    break;
+            }
+
+            document.getElementById('result').innerText = `Seçilen sıklıkta birikim miktarı: ${result} TL`;
+        }
+
+        function incrementSavings(amount, period, exchangeRate) {
+            const incrementalResultElement = document.getElementById('incrementalResult');
+            const cumulativeResultTLElement = document.getElementById('cumulativeResultTL');
+            const cumulativeResultUSDElement = document.getElementById('cumulativeResultUSD');
+            let currentAmount = 0;
+            let cumulativeAmount = 0;
+
+            interval = setInterval(() => {
+                const incrementAmount = (amount / period) / 60;
+                currentAmount += incrementAmount;
+                cumulativeAmount += incrementAmount;
+                const dollarAmount = cumulativeAmount / exchangeRate;
+
+                incrementalResultElement.innerHTML = `Artan birikim miktarı: ${incrementAmount.toFixed(4)} TL`;
+                cumulativeResultTLElement.innerHTML = `Biriken toplam tutar: ${cumulativeAmount.toFixed(4)} TL`;
+                cumulativeResultUSDElement.innerHTML = `(${dollarAmount.toFixed(4)} USD)`;
+            }, 1000);
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                seconds++;
+                let hrs = Math.floor(seconds / 3600);
+                let mins = Math.floor((seconds % 3600) / 60);
+                let secs = seconds % 60;
+                document.getElementById('timer').innerText = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function startIncrementalAndTimer() {
+            clearInterval(interval);
+            clearInterval(timerInterval);
+            seconds = 0;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const exchangeRate = parseFloat(document.getElementById('

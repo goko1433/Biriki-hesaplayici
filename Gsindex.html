@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birikim Hesaplayıcı</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        h1 {
+            color: #00ff00;
+        }
+
+        #savingsForm {
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+
+        button {
+            background-color: #00ff00;
+            color: #121212;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #resultBox, #incrementalBox, #cumulativeBox, #timerBox {
+            background-color: #1e1e1e;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            width: 300px;
+            margin: 10px auto;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Birikim Hesaplayıcı</h1>
+        <form id="savingsForm">
+            <label for="amount">Aylık Birikim Miktarı (TL):</label>
+            <input type="number" id="amount" min="0" step="0.01" required>
+
+            <label for="exchangeRate">Dolar Kuru:</label>
+            <input type="number" id="exchangeRate" min="0" step="0.01" required>
+
+            <label for="frequency">Birikim Sıklığı:</label>
+            <select id="frequency" required>
+                <option value="hourly">Saatlik</option>
+                <option value="minute">Dakikalık</option>
+                <option value="daily">Günlük</option>
+                <option value="monthly">Aylık</option>
+            </select>
+
+            <button type="button" onclick="startIncrementalAndTimer()">Başlat</button>
+            <button type="button" onclick="resetSavings()">Sıfırla</button>
+        </form>
+
+        <div id="resultBox">
+            <p id="result"></p>
+        </div>
+
+        <div id="incrementalBox">
+            <p id="incrementalResult"></p>
+        </div>
+
+        <div id="cumulativeBox">
+            <p id="cumulativeResultTL"></p>
+            <p id="cumulativeResultUSD"></p>
+        </div>
+
+        <div id="timerBox">
+            <p id="timer">00:00:00</p>
+        </div>
+    </div>
+
+    <script>
+        let interval, timerInterval;
+        let seconds = 0;
+        let cumulativeAmount = 0;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSavedData();
+        });
+
+        function loadSavedData() {
+            const savedAmount = localStorage.getItem('amount');
+            const savedExchangeRate = localStorage.getItem('exchangeRate');
+            const savedFrequency = localStorage.getItem('frequency');
+            const savedCumulativeAmount = localStorage.getItem('cumulativeAmount');
+            const savedSeconds = localStorage.getItem('seconds');
+            const lastTimestamp = localStorage.getItem('lastTimestamp');
+
+            if (savedAmount) document.getElementById('amount').value = savedAmount;
+            if (savedExchangeRate) document.getElementById('exchangeRate').value = savedExchangeRate;
+            if (savedFrequency) document.getElementById('frequency').value = savedFrequency;
+            if (savedCumulativeAmount) cumulativeAmount = parseFloat(savedCumulativeAmount) || 0;
+            if (savedSeconds) seconds = parseInt(savedSeconds) || 0;
+
+            if (lastTimestamp) {
+                const now = Math.floor(Date.now() / 1000);
+                const elapsedSeconds = now - parseInt(lastTimestamp);
+                updatePastSavings(elapsedSeconds);
+            }
+
+            updateUI();
+        }
+
+        function updatePastSavings(elapsedSeconds) {
+            const amount = parseFloat(localStorage.getItem('amount'));
+            const frequency = localStorage.getItem('frequency');
+            let period = getPeriod(frequency);
+
+            const earnedAmount = (amount / period) * (elapsedSeconds / 60);
+            cumulativeAmount += earnedAmount;
+        }
+
+        function getPeriod(frequency) {
+            switch (frequency) {
+                case 'hourly': return 30 * 24;
+                case 'minute': return 30 * 24 * 60;
+                case 'daily': return 30;
+                case 'monthly': return 1;
+                default: return 1;
+            }
+        }
+
+        function startIncrementalAndTimer() {
+            clearInterval(interval);
+            clearInterval(timerInterval);
+            seconds = 0;
+
+            const amount = parseFloat(document.getElementById('amount').value);
+            const exchangeRate = parseFloat(document.getElementById('exchangeRate').value);
+            const frequency = document.getElementById('frequency').value;
+            const period = getPeriod(frequency);
+
+            localStorage.setItem('amount', amount);
+            localStorage.setItem('exchangeRate', exchangeRate);
+            localStorage.setItem('frequency', frequency);
+
+            interval = setInterval(() => {
+                const incrementAmount = (amount / period) / 60;
+                cumulativeAmount += incrementAmount;
+                updateUI();
+            }, 1000);
+
+            startTimer();
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                seconds++;
+                updateUI();
+            }, 1000);
+        }
+
+        function updateUI() {
+            const exchangeRate = parseFloat(localStorage.getItem('exchangeRate')) || 1;
+            document.getElementById('incrementalResult').innerText = `Artan birikim: ${(cumulativeAmount / seconds || 0).toFixed(4)} TL/sn`;
+            document.getElementById('cumulativeResultTL').innerText = `Toplam birikim: ${cumulativeAmount.toFixed(4)} TL`;
+            document.getElementById('cumulativeResultUSD').innerText = `(${(cumulativeAmount / exchangeRate).toFixed(4)} USD)`;
+            document.getElementById('timer').innerText = new Date(seconds * 1000).toISOString().substr(11, 8);
+
+            localStorage.setItem('cumulativeAmount', cumulativeAmount);
+            localStorage.setItem('seconds', seconds);
+            localStorage.setItem('lastTimestamp', Math.floor(Date.now() / 1000));
+        }
+
+        function resetSavings() {
+            clearInterval(interval);
+            clearInterval(timerInterval);
+            localStorage.clear();
+            cumulativeAmount = 0;
+            seconds = 0;
+            updateUI();
+        }
+    </script>
+</body>
+</html>
